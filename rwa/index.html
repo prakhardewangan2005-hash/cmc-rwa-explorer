@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CoinMarketCap RWA Explorer &amp; Safe-Haven Hedge Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1ee;--panel:#fbfcfb;--ink:#14231f;--mute:#5b6b66;--line:#cfd8d3;--gold:#9a6b12;--up:#1b7a4b;--down:#b3372f;--accent:#0f5c4d;--bar:#dfe7e2;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1815;--panel:#15231f;--ink:#e6efe9;--mute:#97a8a1;--line:#2a3d37;--gold:#e0b04f;--up:#4fd08e;--down:#ff8077;--accent:#5fd3b8;--bar:#22352f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1815;--panel:#15231f;--ink:#e6efe9;--mute:#97a8a1;--line:#2a3d37;--gold:#e0b04f;--up:#4fd08e;--down:#ff8077;--accent:#5fd3b8;--bar:#22352f;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 "Public Sans",system-ui,sans-serif}
+main{max-width:1080px;margin:0 auto;padding:20px 16px 48px}
+h1,h2{font-family:Fraunces,Georgia,serif;margin:0}
+h1{font-size:clamp(26px,5vw,40px);line-height:1.1;max-width:20ch}
+h2{font-size:22px;margin:36px 0 12px}
+.sub{color:var(--mute);max-width:62ch;margin:10px 0 0}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card.gold{border-left:4px solid var(--gold)}.card.rwa{border-left:4px solid var(--accent)}.card.btc{border-left:4px solid var(--mute)}
+.sym{font-weight:600}.nm{color:var(--mute);font-size:13px}
+.px{font:700 24px Fraunces,Georgia,serif;margin:6px 0}
+.row{display:flex;justify-content:space-between;font-size:13px;color:var(--mute)}
+.up{color:var(--up)}.dn{color:var(--down)}
+.wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:13.5px}
+th,td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:500}
+tr:last-child td{border-bottom:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.big{font:700 30px Fraunces,Georgia,serif}
+.bar{height:14px;border-radius:7px;background:var(--bar);overflow:hidden;display:flex;margin:8px 0}
+.bar i{display:block;height:100%}
+label{display:block;margin:12px 0 2px;font-weight:500}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px}
+.res{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}
+.res div{border:1px solid var(--line);border-radius:8px;padding:10px}
+.res small{display:block;color:var(--mute)}.res b{font-size:20px}
+ul.news{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+ul.news li{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+ul.news a{color:var(--ink);font-weight:600;text-decoration-color:var(--accent)}
+.meta{color:var(--mute);font-size:12.5px}
+details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600}
+.call{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+code,pre{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--bar);padding:8px;border-radius:6px;margin:6px 0}
+.note{color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<div class="top">
+<div>
+<h1>CoinMarketCap RWA Explorer &amp; Safe-Haven Hedge Calculator</h1>
+<p class="sub">Tokenised gold, tokenised Treasuries and BTC side by side, using live data from the CoinMarketCap MCP. Snapshot: <span id="ts"></span>.</p>
+</div>
+<button id="theme" type="button">Switch theme</button>
+</div>
+
+<section class="cards" id="cards" aria-label="Live quote cards"></section>
+
+<h2>Comparison table</h2>
+<div class="wrap"><table id="tbl"><thead><tr><th>Asset</th><th>Price</th><th>24h</th><th>7d</th><th>30d</th><th>YTD</th><th>Market cap</th><th>24h volume</th><th>Vol/MCap</th><th>Circulating</th><th>Max supply</th></tr></thead><tbody></tbody></table></div>
+
+<h2>Tokenised gold: peg &amp; liquidity</h2>
+<div class="grid2" id="peg"></div>
+
+<h2>Safe-haven allocation simulator</h2>
+<div class="panel">
+<p class="note" style="margin-top:0">Set your mix. Weights are rescaled to 100%. Results use CMC’s 30-day and year-to-date price changes (not intraperiod max drawdown) and compare your mix with holding 100% BTC.</p>
+<label for="g">Tokenised gold (PAXG/XAUt average): <b id="gv"></b></label>
+<input type="range" id="g" min="0" max="100" value="40">
+<label for="r">Tokenised Treasuries / RWA: <b id="rv"></b> &nbsp; <select id="rsel" aria-label="RWA asset"><option value="USDY">USDY (Treasury yield)</option><option value="ONDO">ONDO (RWA governance)</option></select></label>
+<input type="range" id="r" min="0" max="100" value="30">
+<label for="b">BTC: <b id="bv"></b></label>
+<input type="range" id="b" min="0" max="100" value="30">
+<div class="bar" id="alloc"></div>
+<div class="res" id="res"></div>
+</div>
+
+<h2>Latest RWA news (CoinMarketCap)</h2>
+<ul class="news" id="news"></ul>
+
+<h2>Holder concentration (CMC on-chain metrics)</h2>
+<div class="wrap"><table id="hold" style="min-width:640px"><thead><tr><th>Asset</th><th>Whale share of supply</th><th>Addresses &gt;$100k</th><th>Long-term holders</th><th>Total holders</th></tr></thead><tbody></tbody></table></div>
+
+<h2>Live response proof</h2>
+<details>
+<summary>CMC MCP Tools Called — Live Response Proof</summary>
+<p class="note">Run date 2026-11-22. The MCP returns no per-call timestamps, so the timestamp shown is the data’s own last_updated field where one exists, otherwise the run date.</p>
+<div id="proof"></div>
+</details>
+</main>
+<script>
+const D={ts:"2026-11-22T07:24:18Z",a:[
+{s:"PAXG",n:"PAX Gold",k:"gold",id:4705,p:3529.8220820254614,d1:0.2336,d7:-7.5970,d30:-12.2636,y:-18.9750,mc:1579007084.57,v:87102907.0,t:0.05520956,c:447333.34,mx:null,w:40.28,h100:901,lt:54.26,th:87659},
+{s:"XAUt",n:"Tether Gold",k:"gold",id:5176,p:3528.4367197152383,d1:0.2521,d7:-7.5907,d30:-12.0560,y:-18.8749,mc:2644293623.71,v:149641718.09,t:0.05668971,c:749423.56,mx:null,w:86.34,h100:192,lt:16.42,th:142649},
+{s:"ONDO",n:"Ondo",k:"rwa",id:21159,p:0.2761551600323649,d1:3.1116,d7:-8.6323,d30:-36.9092,y:-28.5674,mc:1344690784.07,v:79021277.89,t:0.05882229,c:4869330647,mx:1e10,w:71.50,h100:746,lt:17.96,th:223762},
+{s:"USDY",n:"Ondo US Dollar Yield",k:"rwa",id:29256,p:1.1533913911935658,d1:0.0803,d7:0.0650,d30:0.2707,y:3.3297,mc:2371357588.95,v:23739896.04,t:0.01001536,c:2055986898.34,mx:null,w:98.21,h100:29,lt:40.00,th:null},
+{s:"BTC",n:"Bitcoin",k:"btc",id:1,p:59041.603023751384,d1:1.3375,d7:-8.3434,d30:-27.6675,y:-33.4610,mc:1187660753239.15,v:37129212533.1,t:0.03116885,c:20115659,mx:21e6,w:1.25,h100:1121507,lt:76.05,th:null}]};
+const A=Object.fromEntries(D.a.map(x=>[x.s,x]));
+const $=id=>document.getElementById(id);
+const pc=x=>`<span class="${x>=0?'up':'dn'}">${x>=0?'+':''}${x.toFixed(2)}%</span>`;
+const usd=x=>x>=1e12?'$'+(x/1e12).toFixed(2)+'T':x>=1e9?'$'+(x/1e9).toFixed(2)+'B':x>=1e6?'$'+(x/1e6).toFixed(1)+'M':'$'+x.toFixed(0);
+const px=x=>'$'+(x>=100?x.toLocaleString('en-US',{maximumFractionDigits:2}):x.toFixed(4));
+const num=x=>x==null?'None set':x>=1e9?(x/1e9).toFixed(3)+'B':x.toLocaleString('en-US',{maximumFractionDigits:0});
+$('ts').textContent=D.ts.replace('T',' ').replace('Z',' UTC');
+$('cards').innerHTML=D.a.map(x=>`<div class="card ${x.k}"><div class="sym">${x.s}</div><div class="nm">${x.n}</div><div class="px">${px(x.p)}</div><div class="row"><span>24h</span>${pc(x.d1)}</div><div class="row"><span>30d</span>${pc(x.d30)}</div><div class="row"><span>YTD</span>${pc(x.y)}</div></div>`).join('');
+$('tbl').tBodies[0].innerHTML=D.a.map(x=>`<tr><td><b>${x.s}</b></td><td>${px(x.p)}</td><td>${pc(x.d1)}</td><td>${pc(x.d7)}</td><td>${pc(x.d30)}</td><td>${pc(x.y)}</td><td>${usd(x.mc)}</td><td>${usd(x.v)}</td><td>${(x.v/x.mc).toFixed(4)}</td><td>${num(x.c)}</td><td>${x.mx?num(x.mx):'None set'}</td></tr>`).join('');
+// peg
+const P=A.PAXG,X=A.XAUt,sp=P.p-X.p,spp=sp/X.p*100,tot=P.mc+X.mc,vt=P.v+X.v;
+const share=(a,b,l)=>`<div class="bar" role="img" aria-label="${l}"><i style="width:${a/(a+b)*100}%;background:var(--gold)"></i><i style="width:${b/(a+b)*100}%;background:var(--accent)"></i></div>`;
+$('peg').innerHTML=`<div class="panel"><div class="nm">PAXG minus XAUt price</div><div class="big">${sp>=0?'+':'-'}$${Math.abs(sp).toFixed(2)}</div><div class="note">${spp.toFixed(3)}% spread. PAXG ${px(P.p)} vs XAUt ${px(X.p)}. Both claim 1 troy oz per token, so a spread this small suggests a tight peg.</div></div>
+<div class="panel"><div class="nm">Market cap share (gold = PAXG, green = XAUt)</div>${share(P.mc,X.mc,'Market cap share')}<div class="row"><span>PAXG ${(P.mc/tot*100).toFixed(1)}% · ${usd(P.mc)}</span><span>XAUt ${(X.mc/tot*100).toFixed(1)}% · ${usd(X.mc)}</span></div></div>
+<div class="panel"><div class="nm">24h volume share</div>${share(P.v,X.v,'Volume share')}<div class="row"><span>PAXG ${(P.v/vt*100).toFixed(1)}% · ${usd(P.v)}</span><span>XAUt ${(X.v/vt*100).toFixed(1)}% · ${usd(X.v)}</span></div></div>
+<div class="panel"><div class="nm">Turnover (CMC)</div><div class="row"><span>PAXG</span><b>${P.t.toFixed(4)}</b></div><div class="row"><span>XAUt</span><b>${X.t.toFixed(4)}</b></div><div class="note">XAUt moves ${(X.v/P.v).toFixed(2)}x the dollar volume, yet turnover is near equal. Depth is proportional to size.</div></div>`;
+// simulator
+const ids=['g','r','b'];
+function sim(){const raw=ids.map(i=>+$(i).value),s=raw.reduce((a,b)=>a+b,0)||1,w=raw.map(v=>v/s);
+const R=A[$('rsel').value],G=[(P.d30+X.d30)/2,(P.y+X.y)/2],B=A.BTC;
+const m=(k)=>w[0]*G[k]+w[1]*(k?R.y:R.d30)+w[2]*(k?B.y:B.d30);
+const p30=m(0),py=m(1);
+ids.forEach((i,j)=>$(i[0]+'v').textContent=(w[j]*100).toFixed(0)+'%');
+$('alloc').innerHTML=w.map((x,j)=>`<i style="width:${x*100}%;background:${['var(--gold)','var(--accent)','var(--mute)'][j]}"></i>`).join('');
+const c=(a)=>`<b class="${a>=0?'up':'dn'}">${a>=0?'+':''}${a.toFixed(1)} pts</b>`;
+$('res').innerHTML=`<div><small>Mix 30d change</small>${pc(p30)}</div><div><small>BTC 30d change</small>${pc(B.d30)}</div><div><small>30d cushion vs 100% BTC</small>${c(p30-B.d30)}</div><div><small>Mix YTD change</small>${pc(py)}</div><div><small>BTC YTD change</small>${pc(B.y)}</div><div><small>YTD cushion vs 100% BTC</small>${c(py-B.y)}</div>`}
+ids.concat('rsel').forEach(i=>$(i).addEventListener('input',sim));sim();
+// news
+const N=[["Pax Gold falls about 9% from early-November high as dollar and rate expectations weigh","PAXG","https://coinmarketcap.com/community/articles/6afda4d691c6a514b157585d","18 Nov"],
+["Tether Gold (XAUT) vs other gold-backed stablecoins: a detailed comparison","XAUt","https://www.onebullex.com/explore/tether-gold-xaut-vs-other-gold-backed-stablecoins-comparison","18 Nov"],
+["RWA protocol revenue reveals sharp market divide","XAUt","https://coinmarketcap.com/community/articles/6b00538fd321fc68336739c8","20 Nov"],
+["Ondo falls about 19% in a week despite Project Guardian entry","ONDO","https://coinmarketcap.com/community/articles/6b01ac19d89dfa3d3d6b7ed4","21 Nov"],
+["Ondo (ONDO) price analysis: falls 9.22% in 24 hours","ONDO","https://coinmarketcap.com/community/articles/6b0128d7edc09f5fb9915ebd","21 Nov"],
+["Franklin Templeton leads $14B tokenized US T-bill market","USDY","https://cryptobriefing.com/franklin-templeton-leads-tokenized-treasury-market/","19 Nov"],
+["Best yield-bearing stablecoins explained: USDe, USDY and more","USDY","https://coinmarketcap.com/community/articles/6afe882d63e3bc486e7e02a5","18 Nov"],
+["Bitcoin reclaims $60,000 after 9% bounce from two-year low","BTC","https://bitcoinist.com/bitcoin-reclaims-60000-after-9-bounce-from-two-year-low/","22 Nov"]];
+$('news').innerHTML=N.map(n=>`<li><a href="${n[2]}" target="_blank" rel="noopener">${n[0]}</a><div class="meta">${n[1]} feed · ${n[3]} 2026</div></li>`).join('');
+// holders
+$('hold').tBodies[0].innerHTML=D.a.map(x=>`<tr><td><b>${x.s}</b></td><td>${x.w.toFixed(2)}%</td><td>${x.h100.toLocaleString('en-US')}</td><td>${x.lt.toFixed(1)}%</td><td>${x.th?x.th.toLocaleString('en-US'):'Not returned'}</td></tr>`).join('');
+// proof
+const T=[["search_cryptos",'query: "PAXG" | "XAUT" | "ONDO" | "USDY"',"n/a",'{"id":4705,"name":"PAX Gold","symbol":"PAXG","slug":"pax-gold","rank":40}'],
+["get_crypto_quotes_latest",'id: "4705,5176,21159,29256,1"',"2026-11-22T07:24:18Z",'["4705","PAX Gold","PAXG","pax-gold",3529.8220820254614,40,0.05520956,"2026-11-22T07:24:18.114Z",...]'],
+["get_crypto_info",'id: "4705" ; id: "5176,21159,29256,1"',"2026-11-22",'"tags":["ethereum-ecosystem","tokenized-gold","real-world-assets-protocols",...]'],
+["get_crypto_metrics",'id: "4705" | "5176" | "21159" | "29256" | "1" (one call each)',"2026-11-22",'"circulatingSupplyDistribution":{"whales":{"volume":114316.24,"percentOfSupply":40.28},...}'],
+["get_crypto_latest_news",'id: 4705, 5176, 21159, 29256, 1 ; limit: 3 to 4',"2026-11-22",'["Bitcoin Reclaims $60,000 After 9% Bounce From Two-Year Low",...,"22 November 2026 07:56 AM UTC+0","8.0"]']];
+const M=["Two calls returned “No approval received” on the first attempt (get_crypto_info for all five ids, get_crypto_metrics for PAXG) and were retried successfully.",
+"USDY and BTC returned an empty coinMarketCapCryptoTotalHolderData block, so total holder counts are missing for both.",
+"BTC whale plus others volumes (about 39.6M) exceed its 21M supply, so treat BTC holder distribution as unreliable.",
+"avgTransactionFee30d came back empty for every asset.",
+"XAUt self_reported_circulating_supply (48,450) conflicts with circulating supply (749,423). The page uses circulating_supply.",
+"Profile text is stale for PAXG (about 60,161 coins) and BTC (2021–2022); the USDY description is empty.",
+"No max supply is set for PAXG, XAUt or USDY. Quotes are USD-only snapshots, so drawdown here means 30d and YTD price change, not true max drawdown."];
+$('proof').innerHTML=T.map(t=>`<div class="call"><b>${t[0]}</b><div class="meta">Arguments: <code>${t[1]}</code> · Timestamp: ${t[2]}</div><pre>${t[3].replace(/</g,'&lt;')}</pre></div>`).join('')+`<div class="call"><b>Missing or partial data</b><ul class="note">${M.map(m=>'<li>'+m+'</li>').join('')}</ul></div>`;
+// theme
+$('theme').onclick=()=>{const r=document.documentElement,d=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;r.dataset.theme=d?'light':'dark'};
+</script>
+</body>
+</html>
